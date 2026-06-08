@@ -1,0 +1,6 @@
+{
+  "name": "Google Sheets Visualizer",
+  "description": "Una aplicación interactiva para visualizar, filtrar y analizar datos de Google Sheets mediante tablas avanzadas y gráficos dinámicos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
