@@ -1,17 +1,54 @@
 import { SheetData, ColumnInfo, ColumnType } from "../types";
+import Papa from "papaparse";
 
 export async function fetchSheetData(): Promise<SheetData> {
-  const response = await fetch("/api/data");
-  if (!response.ok) {
-    throw new Error(`Error de red al obtener los datos de la hoja (${response.status})`);
-  }
-  const result = await response.json();
-  if (!result.success) {
-    throw new Error(result.error || "No se pudieron recuperar los datos de la hoja.");
-  }
+  const sheetId = "1Bxl41qsmro3f8L-_AVtoeKi37_QzPNXevjBPO_E7LPY";
+  const gid = "44644585";
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+  const sheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit?gid=${gid}`;
 
-  const rawRecords = result.data || [];
-  const columns = result.columns || [];
+  let rawRecords: any[] = [];
+  let columns: string[] = [];
+  let finalSheetUrl = sheetUrl;
+
+  try {
+    const response = await fetch("/api/data");
+    if (!response.ok) {
+      throw new Error(`Error de red con código ${response.status}`);
+    }
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.error || "No se pudieron recuperar los datos de la hoja.");
+    }
+    rawRecords = result.data || [];
+    columns = result.columns || [];
+    finalSheetUrl = result.sheetUrl || sheetUrl;
+  } catch (apiError) {
+    console.warn("Express API proxy /api/data failed, falling back to direct client-side spreadsheet fetching:", apiError);
+    try {
+      // Fallback: Fetch public Google Sheets CSV export link directly
+      const response = await fetch(csvUrl);
+      if (!response.ok) {
+        throw new Error(`Fallo directo de Google Sheets CSV (${response.status})`);
+      }
+      const csvText = await response.text();
+      
+      const parseResult = Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: true, // Auto-typed numbers and booleans
+      });
+
+      rawRecords = parseResult.data || [];
+      columns = parseResult.meta.fields || [];
+      finalSheetUrl = sheetUrl;
+    } catch (fallbackError: any) {
+      console.error("Direct fallback fetch failed:", fallbackError);
+      throw new Error(
+        `Error de Conexión de Datos: No se pudo contactar con la API local ni con la descarga directa de Google Sheets. Detalles: ${fallbackError.message || fallbackError}`
+      );
+    }
+  }
 
   // Analyze columns to detect types & calculate metadata
   const columnInfos: ColumnInfo[] = columns.map((colName: string) => {
@@ -98,6 +135,6 @@ export async function fetchSheetData(): Promise<SheetData> {
     records: rawRecords,
     columns,
     columnInfos,
-    sheetUrl: result.sheetUrl,
+    sheetUrl: finalSheetUrl,
   };
 }
